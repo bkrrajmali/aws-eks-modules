@@ -6,6 +6,12 @@ variable "kubernetes_version" {
   type = string
 }
 
+variable "node_kubernetes_version" {
+  description = "Kubernetes version for the node groups. null = same as the cluster. Can be up to 2 minor versions behind the cluster, never ahead."
+  type        = string
+  default     = null
+}
+
 variable "subnet_ids" {
   description = "Private subnets for the cluster and nodes."
   type        = list(string)
