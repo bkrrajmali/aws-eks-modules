@@ -85,7 +85,7 @@ resource "aws_eks_node_group" "system" {
   node_group_name = var.system_node_group.name
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.subnet_ids
-  version         = var.kubernetes_version
+  version         = coalesce(var.node_kubernetes_version, var.kubernetes_version)
   ami_type        = var.ami_type
   instance_types  = var.system_node_group.instance_types
   disk_size       = var.system_node_group.disk_size
@@ -113,7 +113,7 @@ resource "aws_eks_node_group" "user" {
   node_group_name = var.user_node_group.name
   node_role_arn   = aws_iam_role.node.arn
   subnet_ids      = var.subnet_ids
-  version         = var.kubernetes_version
+  version         = coalesce(var.node_kubernetes_version, var.kubernetes_version)
   ami_type        = var.ami_type
   instance_types  = var.user_node_group.instance_types
   disk_size       = var.user_node_group.disk_size
@@ -140,12 +140,24 @@ resource "aws_eks_node_group" "user" {
 # Add-ons
 ###############################################################################
 
+# Newest add-on version that works with the cluster's Kubernetes version.
+# Re-evaluated on every plan, so add-ons upgrade along with the cluster.
+data "aws_eks_addon_version" "addons" {
+  for_each = toset(var.addons)
+
+  addon_name         = each.value
+  kubernetes_version = aws_eks_cluster.eks.version
+  most_recent        = true
+}
+
 resource "aws_eks_addon" "addons" {
   for_each = toset(var.addons)
 
-  cluster_name = aws_eks_cluster.eks.name
-  addon_name   = each.value
-  tags         = var.tags
+  cluster_name                = aws_eks_cluster.eks.name
+  addon_name                  = each.value
+  addon_version               = data.aws_eks_addon_version.addons[each.value].version
+  resolve_conflicts_on_update = "OVERWRITE"
+  tags                        = var.tags
 
   # coredns needs nodes to schedule on.
   depends_on = [aws_eks_node_group.system]
